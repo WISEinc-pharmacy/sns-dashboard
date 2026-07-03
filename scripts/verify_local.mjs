@@ -1,5 +1,4 @@
-// ローカル検証: 静的サーバを立ててヘッドレスブラウザで表示確認+スクリーンショット
-// 使い方: node scripts/verify_local.mjs（要: AI_secretary_reikaのplaywright）
+// ローカル検証: 認証ゲート版。未ログインで loginGate が表示され、JSエラーが出ないことを確認。
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,20 +24,15 @@ server.listen(0, '127.0.0.1', async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(500);
-  const cards = await page.locator('#cards .card').count();
-  const hasSvg = await page.locator('#chart svg').count();
-  const rows = await page.locator('#contents-table tbody tr').count();
-  const updated = await page.locator('#updated').textContent();
-  await page.screenshot({ path: path.join(ROOT, 'verify_screenshot.png'), fullPage: true });
-  await page.locator('.tab[data-tab="lme"]').click();
-  await page.waitForTimeout(300);
-  const lmeRows = await page.locator('#contents-table tbody tr').count();
+  page.on('console', (m) => { if (m.type() === 'error' && !/firestore|network|ERR_|401|403|Failed to load/i.test(m.text())) errors.push(m.text()); });
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  const loginVisible = await page.locator('#loginGate:not(.hidden)').count();
+  const loginBtn = await page.locator('#loginBtn').count();
+  await page.screenshot({ path: path.join(ROOT, 'verify_screenshot.png') });
   await browser.close();
   server.close();
-  console.log(`cards=${cards} chartSvg=${hasSvg} youtubeRows=${rows} lmeRows=${lmeRows} updated="${updated}"`);
-  console.log(errors.length ? 'JS ERRORS:\n' + errors.join('\n') : 'no JS errors');
-  process.exitCode = errors.length || cards < 4 || !hasSvg ? 1 : 0;
+  console.log(`loginGateVisible=${loginVisible} loginBtn=${loginBtn}`);
+  console.log(errors.length ? 'JS ERRORS:\n' + errors.join('\n') : 'no blocking JS errors');
+  process.exitCode = errors.length || !loginVisible ? 1 : 0;
 });

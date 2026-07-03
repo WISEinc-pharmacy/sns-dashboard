@@ -8,3 +8,5 @@ serviceAccountKey.json
 .DS_Store
 *.local.json
 verify_screenshot.png
+data/
+collect.log
