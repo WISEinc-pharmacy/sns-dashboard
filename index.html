@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ファーマシストキャンパス SNSダッシュボード | ワイズグループ</title>
+  <style>
+    :root {
+      --color-primary:    #3b82f6;
+      --color-secondary:  #6366f1;
+      --color-accent:     #06b6d4;
+      --color-bg:         #f8fafc;
+      --color-surface:    #ffffff;
+      --color-text:       #1e293b;
+      --color-text-sub:   #64748b;
+      --color-border:     #e2e8f0;
+      --color-youtube:    #dc2626;
+      --color-line:       #059669;
+      --color-muted-bg:   #f1f5f9;
+      --font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+      --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem;
+      --text-lg: 1.125rem; --text-xl: 1.25rem; --text-2xl: 1.5rem; --text-3xl: 1.875rem;
+      --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+      --space-card: 24px;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-full: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-family); background: var(--color-bg); color: var(--color-text); line-height: 1.7; }
+    :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; border-radius: 4px; }
+
+    header {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: var(--space-4) var(--space-6);
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-4);
+    }
+    header h1 { font-size: var(--text-xl); }
+    header .updated { font-size: var(--text-sm); color: var(--color-text-sub); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: var(--space-6); display: grid; gap: var(--space-6); }
+
+    .cards { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: var(--space-card);
+    }
+    .card .channel { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 700; color: var(--color-text-sub); }
+    .card .dot { width: 10px; height: 10px; border-radius: var(--radius-full); flex: 0 0 auto; }
+    .card .value { font-size: var(--text-3xl); font-weight: 700; margin-top: var(--space-2); }
+    .card .metric-label { font-size: var(--text-xs); color: var(--color-text-sub); }
+    .card .delta { font-size: var(--text-sm); margin-top: var(--space-2); }
+    .delta.up { color: #059669; }
+    .delta.down { color: #dc2626; }
+    .delta.flat { color: var(--color-text-sub); }
+    .card .sub-metrics { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-text-sub); }
+    .card.pending { background: var(--color-muted-bg); }
+    .card.pending .value { font-size: var(--text-lg); color: var(--color-text-sub); font-weight: 400; margin-top: var(--space-3); }
+
+    section.panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: var(--space-card);
+    }
+    section.panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+    .chart-wrap { width: 100%; overflow-x: auto; }
+    .legend { display: flex; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-sub); margin-bottom: var(--space-2); flex-wrap: wrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend .sw { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+
+    .tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap; }
+    .tab {
+      border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);
+      padding: 12px 20px; border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: 700;
+      cursor: pointer; transition: all 0.2s ease; min-height: 48px;
+    }
+    .tab[aria-selected="true"] { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+
+    .table-wrap { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    th, td { text-align: left; padding: var(--space-3); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+    td.title-cell { white-space: normal; min-width: 240px; }
+    th { color: var(--color-text-sub); font-size: var(--text-xs); }
+    td.num, th.num { text-align: right; }
+    a { color: var(--color-primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .empty { color: var(--color-text-sub); font-size: var(--text-sm); padding: var(--space-4) 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ファーマシストキャンパス SNSダッシュボード</h1>
+    <span class="updated" id="updated">読み込み中...</span>
+  </header>
+
+  <main>
+    <div class="cards" id="cards"></div>
+
+    <section class="panel">
+      <h2>登録者数の推移</h2>
+      <div class="legend" id="legend"></div>
+      <div class="chart-wrap" id="chart"></div>
+    </section>
+
+    <section class="panel">
+      <h2>提供コンテンツ</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="youtube">YouTube動画</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="lme">LINE配信（エルメ）</button>
+      </div>
+      <div class="table-wrap" id="contents-table"></div>
+    </section>
+  </main>
+
+  <script>
+    const state = { snapshots: null, contents: null, tab: 'youtube' };
+    const fmt = (n) => (n === undefined || n === null) ? '-' : Number(n).toLocaleString('ja-JP');
+
+    function deltaInfo(series, key) {
+      if (!series || series.length < 2) return null;
+      const latest = series[series.length - 1];
+      const weekAgo = [...series].reverse().find((s) => s.date <= addDays(latest.date, -7)) || series[0];
+      if (weekAgo === latest) return null;
+      const d = latest[key] - weekAgo[key];
+      return { d, since: weekAgo.date };
+    }
+    function addDays(dateStr, days) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+    function deltaHtml(info, unit) {
+      if (!info) return '<div class="delta flat">前回比: データ蓄積中</div>';
+      const cls = info.d > 0 ? 'up' : info.d < 0 ? 'down' : 'flat';
+      const sign = info.d > 0 ? '+' : '';
+      return `<div class="delta ${cls}">${sign}${fmt(info.d)}${unit}（${info.since}比）</div>`;
+    }
+
+    const YT_COLORS = ['#dc2626', '#ea580c', '#9333ea'];
+
+    function ytChannels() {
+      const yt = state.snapshots.youtube || [];
+      const byChannel = new Map();
+      for (const s of yt) {
+        const key = s.channel || 'default';
+        if (!byChannel.has(key)) byChannel.set(key, []);
+        byChannel.get(key).push(s);
+      }
+      return [...byChannel.entries()].map(([key, series], i) => ({
+        key, series,
+        title: series[series.length - 1].channelTitle || '@' + key,
+        color: YT_COLORS[i % YT_COLORS.length]
+      }));
+    }
+
+    function renderCards() {
+      const lme = state.snapshots.lme || [];
+      const lmeLatest = lme[lme.length - 1];
+      const cards = [];
+
+      for (const ch of ytChannels()) {
+        const latest = ch.series[ch.series.length - 1];
+        cards.push(`<div class="card">
+          <div class="channel"><span class="dot" style="background:${ch.color}"></span>YouTube: ${escapeHtml(ch.title)}</div>
+          <div class="value">${fmt(latest.subscribers)}</div>
+          <div class="metric-label">チャンネル登録者</div>
+          ${deltaHtml(deltaInfo(ch.series, 'subscribers'), '人')}
+          <div class="sub-metrics">総再生 ${fmt(latest.totalViews)} 回 / 動画 ${fmt(latest.videoCount)} 本</div>
+        </div>`);
+      }
+
+      cards.push(`<div class="card">
+        <div class="channel"><span class="dot" style="background:var(--color-line)"></span>公式LINE（エルメ）</div>
+        <div class="value">${lmeLatest ? fmt(lmeLatest.friends) : '-'}</div>
+        <div class="metric-label">友だち数</div>
+        ${deltaHtml(deltaInfo(lme, 'friends'), '人')}
+        <div class="sub-metrics">${lmeLatest && lmeLatest.blocked !== undefined ? 'ブロック ' + fmt(lmeLatest.blocked) + ' 人' : '週1回更新（月曜）'}</div>
+      </div>`);
+
+      cards.push(`<div class="card pending">
+        <div class="channel"><span class="dot" style="background:#0f172a"></span>X（@mr39011）</div>
+        <div class="value">未連携（API課金設定後に追加予定）</div>
+      </div>`);
+
+      cards.push(`<div class="card pending">
+        <div class="channel"><span class="dot" style="background:#1d4ed8"></span>Facebook</div>
+        <div class="value">未連携（後日検討）</div>
+      </div>`);
+
+      document.getElementById('cards').innerHTML = cards.join('');
+    }
+
+    function renderChart() {
+      const series = [
+        ...ytChannels().map((ch) => ({
+          label: 'YouTube ' + ch.title, color: ch.color,
+          pts: ch.series.map((s) => ({ date: s.date, v: s.subscribers }))
+        })),
+        {
+          label: 'LINE友だち（エルメ）', color: '#059669',
+          pts: (state.snapshots.lme || []).map((s) => ({ date: s.date, v: s.friends }))
+        }
+      ].filter((s) => s.pts.length);
+
+      document.getElementById('legend').innerHTML = series
+        .map((s) => `<span><span class="sw" style="background:${s.color}"></span>${escapeHtml(s.label)}</span>`).join('');
+
+      const el = document.getElementById('chart');
+      const dates = [...new Set(series.flatMap((s) => s.pts.map((p) => p.date)))].sort();
+      if (dates.length < 2) {
+        el.innerHTML = '<p class="empty">推移グラフはスナップショットが2日分以上たまると表示されます。</p>';
+        return;
+      }
+      const W = Math.max(760, Math.min(dates.length * 12, 1400)), H = 280, PAD = { l: 48, r: 16, t: 12, b: 28 };
+      const all = series.flatMap((s) => s.pts.map((p) => p.v));
+      const maxV = Math.max(...all, 1), minV = 0;
+      const dateIdx = new Map(dates.map((d, i) => [d, i]));
+      const x = (date) => PAD.l + (dateIdx.get(date) / (dates.length - 1)) * (W - PAD.l - PAD.r);
+      const y = (v) => PAD.t + (1 - (v - minV) / (maxV - minV || 1)) * (H - PAD.t - PAD.b);
+      const line = (s) => `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" points="${s.pts.map((p) => x(p.date) + ',' + y(p.v)).join(' ')}"/>` +
+        s.pts.map((p) => `<circle cx="${x(p.date)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"><title>${p.date}: ${fmt(p.v)}</title></circle>`).join('');
+      const ticks = 4;
+      let grid = '';
+      for (let i = 0; i <= ticks; i++) {
+        const v = minV + ((maxV - minV) / ticks) * i;
+        grid += `<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" stroke="#e2e8f0" stroke-width="1"/>` +
+          `<text x="${PAD.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#64748b">${fmt(Math.round(v))}</text>`;
+      }
+      const step = Math.max(1, Math.ceil(dates.length / 10));
+      const xLabels = dates.filter((_, i) => i === 0 || i === dates.length - 1 || i % step === 0)
+        .map((d) => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#64748b">${d.slice(2)}</text>`).join('');
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="登録者数の推移グラフ">${grid}${xLabels}${series.map(line).join('')}</svg>`;
+    }
+
+    function renderContents() {
+      const el = document.getElementById('contents-table');
+      if (state.tab === 'youtube') {
+        const rows = (state.contents.youtube || []);
+        if (!rows.length) { el.innerHTML = '<p class="empty">まだデータがありません。</p>'; return; }
+        const titles = new Map(ytChannels().map((ch) => [ch.key, ch.title]));
+        el.innerHTML = `<table>
+          <thead><tr><th>公開日</th><th>チャンネル</th><th>タイトル</th><th class="num">再生数</th><th class="num">高評価</th></tr></thead>
+          <tbody>${rows.map((v) => `<tr>
+            <td>${v.publishedAt}</td>
+            <td>${escapeHtml(titles.get(v.channel) || v.channel || '')}</td>
+            <td class="title-cell"><a href="${v.url}" target="_blank" rel="noopener">${escapeHtml(v.title)}</a></td>
+            <td class="num">${fmt(v.views)}</td><td class="num">${fmt(v.likes)}</td>
+          </tr>`).join('')}</tbody></table>`;
+      } else {
+        const rows = (state.contents.lme_broadcasts || []);
+        if (!rows.length) { el.innerHTML = '<p class="empty">まだデータがありません（週1回のエルメ同期で追加されます）。</p>'; return; }
+        el.innerHTML = `<table>
+          <thead><tr><th>配信日</th><th>配信名</th><th class="num">配信数</th><th class="num">クリック</th></tr></thead>
+          <tbody>${rows.map((b) => `<tr>
+            <td>${b.sentAt || '-'}</td>
+            <td class="title-cell">${escapeHtml(b.name || '')}</td>
+            <td class="num">${fmt(b.recipients)}</td><td class="num">${fmt(b.clicks)}</td>
+          </tr>`).join('')}</tbody></table>`;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.tab = btn.dataset.tab;
+        document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
+        renderContents();
+      });
+    });
+
+    async function load() {
+      const bust = '?v=' + Date.now();
+      const [snapshots, contents] = await Promise.all([
+        fetch('data/snapshots.json' + bust).then((r) => r.json()),
+        fetch('data/contents.json' + bust).then((r) => r.json())
+      ]);
+      state.snapshots = snapshots;
+      state.contents = contents;
+      const allDates = Object.values(snapshots).flat().map((s) => s.date).sort();
+      document.getElementById('updated').textContent = allDates.length ? '最終データ: ' + allDates[allDates.length - 1] : 'データ未収集';
+      renderCards();
+      renderChart();
+      renderContents();
+    }
+    load().catch((e) => {
+      document.getElementById('updated').textContent = '読み込みエラー: ' + e.message;
+    });
+  </script>
+</body>
+</html>

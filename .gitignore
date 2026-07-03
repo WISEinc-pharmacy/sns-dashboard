@@ -1,0 +1,10 @@
+node_modules/
+.env
+credentials.json
+token.json
+*token*.json
+serviceAccountKey.json
+*.log
+.DS_Store
+*.local.json
+verify_screenshot.png

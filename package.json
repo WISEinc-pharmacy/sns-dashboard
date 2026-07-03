@@ -1,0 +1,13 @@
+{
+  "name": "sns-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "collect:youtube": "node scripts/collect_youtube.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "googleapis": "^140.0.0"
+  }
+}
