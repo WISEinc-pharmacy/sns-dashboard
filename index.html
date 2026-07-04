@@ -489,7 +489,11 @@
       var snap = await db.collection('users').orderBy('email').get();
       var rows = [];
       snap.forEach(function (doc) {
-        var d = doc.data(); var me = d.email === (state.user.email || '').toLowerCase();
+        var d = doc.data();
+        // SNS関係者のみ表示（リスキリング一般会員を誤承認しないよう）
+        var isSnsUser = d.role === 'admin' || d.role === 'editor' || d.snsAccess === true;
+        if (!isSnsUser) return;
+        var me = d.email === (state.user.email || '').toLowerCase();
         var staff = d.role === 'admin' || d.role === 'editor';
         rows.push('<div class="row"><span style="flex:1 1 200px;min-width:0">' + esc(d.email) + ' <span class="rolechip">' + esc(d.role || '') + '</span></span>' +
           (staff ? '<span class="toggle" style="color:var(--color-text-sub)">運営（常時閲覧可）</span>'
