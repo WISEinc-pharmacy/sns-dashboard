@@ -145,7 +145,7 @@
       <div class="userbox">
         <a href="https://wiseinc-pharmacy.github.io/pharmacist-reskilling-members/" title="会員サイトへ">会員サイト ↗</a>
         <span id="userName"></span><span class="rolechip" id="roleChip"></span>
-        <button id="adminBtn" class="btn small hidden">権限管理</button>
+        <!-- 権限管理はリスキリング会員サイト側で一元管理 -->
         <button id="logoutBtn" class="btn small">ログアウト</button>
       </div>
     </header>
@@ -255,8 +255,6 @@
       byId('userName').textContent = state.user.displayName || state.user.email;
       byId('roleChip').textContent = state.profile.role === 'admin' ? '管理者'
         : state.profile.role === 'editor' ? '運営' : '閲覧';
-      byId('adminBtn').classList.toggle('hidden', !isAdmin());
-      byId('adminBtn').onclick = openAdmin;
       await loadData();
       bindFilters();
       renderAll();
