@@ -166,7 +166,7 @@
       <div class="cards" id="cards"></div>
 
       <section class="panel">
-        <h2>登録者数の推移</h2>
+        <h2>登録者数の推移（期間内増減）</h2>
         <div class="legend" id="legend"></div>
         <div class="chart-wrap" id="chart"></div>
       </section>
@@ -380,22 +380,43 @@
       var el = byId('chart');
       var dset = {}; series.forEach(function (s) { s.pts.forEach(function (p) { dset[p.date] = 1; }); });
       var dates = Object.keys(dset).sort();
+      // 1点しかないseriesを今日まで延ばして折れ線として表示する（点になるのを防ぐ）
+      var todayD = todayStr();
+      if (dates.length && todayD > dates[dates.length - 1]) { dset[todayD] = 1; }
+      dates = Object.keys(dset).sort();
+      var lastDate = dates[dates.length - 1];
+      series.forEach(function (s) {
+        if (s.pts.length === 1 && s.pts[0].date <= lastDate) {
+          s.pts.push({ date: lastDate, v: s.pts[0].v });
+        }
+      });
       if (dates.length < 2) { el.innerHTML = '<p class="empty">この期間はデータが2点未満です。期間を広げてください。</p>'; return; }
-      var W = Math.max(760, Math.min(dates.length * 12, 1400)), H = 280, PAD = { l: 48, r: 16, t: 12, b: 28 };
+      // 各seriesを「最初の値からの増減（Δ）」に正規化して比較しやすくする
+      series.forEach(function (s) {
+        if (!s.pts.length) return;
+        var base = s.pts[0].v;
+        s.pts = s.pts.map(function (p) { return { date: p.date, v: p.v - base, raw: p.v }; });
+      });
+      var W = Math.max(760, Math.min(dates.length * 12, 1400)), H = 280, PAD = { l: 54, r: 16, t: 12, b: 28 };
       var all = []; series.forEach(function (s) { s.pts.forEach(function (p) { all.push(p.v); }); });
-      var maxV = Math.max.apply(null, all.concat([1])), minV = 0;
+      var maxV = Math.max.apply(null, all.concat([1]));
+      var minV = Math.min.apply(null, all.concat([0]));
       var idx = {}; dates.forEach(function (d, i) { idx[d] = i; });
       var x = function (d) { return PAD.l + (idx[d] / (dates.length - 1)) * (W - PAD.l - PAD.r); };
       var y = function (v) { return PAD.t + (1 - (v - minV) / (maxV - minV || 1)) * (H - PAD.t - PAD.b); };
       var line = function (s) {
         return '<polyline fill="none" stroke="' + s.color + '" stroke-width="2.5" points="' + s.pts.map(function (p) { return x(p.date) + ',' + y(p.v); }).join(' ') + '"/>' +
-          s.pts.map(function (p) { return '<circle cx="' + x(p.date) + '" cy="' + y(p.v) + '" r="2.5" fill="' + s.color + '"><title>' + p.date + ': ' + fmt(p.v) + '</title></circle>'; }).join('');
+          s.pts.map(function (p) { return '<circle cx="' + x(p.date) + '" cy="' + y(p.v) + '" r="2.5" fill="' + s.color + '"><title>' + p.date + ': ' + (p.v >= 0 ? '+' : '') + fmt(p.v) + '人（実数 ' + fmt(p.raw) + '）</title></circle>'; }).join('');
       };
       var grid = '';
-      for (var i = 0; i <= 4; i++) { var v = minV + (maxV - minV) / 4 * i; grid += '<line x1="' + PAD.l + '" y1="' + y(v) + '" x2="' + (W - PAD.r) + '" y2="' + y(v) + '" stroke="#e2e8f0"/><text x="' + (PAD.l - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end" font-size="11" fill="#64748b">' + fmt(Math.round(v)) + '</text>'; }
+      for (var i = 0; i <= 4; i++) {
+        var gv = minV + (maxV - minV) / 4 * i;
+        var gLabel = (gv > 0 ? '+' : '') + fmt(Math.round(gv));
+        grid += '<line x1="' + PAD.l + '" y1="' + y(gv) + '" x2="' + (W - PAD.r) + '" y2="' + y(gv) + '" stroke="#e2e8f0"/><text x="' + (PAD.l - 4) + '" y="' + (y(gv) + 4) + '" text-anchor="end" font-size="10" fill="#64748b">' + gLabel + '</text>';
+      }
       var step = Math.max(1, Math.ceil(dates.length / 10));
       var xl = dates.filter(function (_, i) { return i === 0 || i === dates.length - 1 || i % step === 0; }).map(function (d) { return '<text x="' + x(d) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="#64748b">' + d.slice(2) + '</text>'; }).join('');
-      el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="登録者数の推移">' + grid + xl + series.map(line).join('') + '</svg>';
+      el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="登録者数の推移（期間内増減）">' + grid + xl + series.map(line).join('') + '</svg>';
     }
 
     function renderContents() {
