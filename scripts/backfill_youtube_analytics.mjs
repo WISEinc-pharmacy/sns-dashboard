@@ -58,10 +58,10 @@ async function backfillChannel(youtube, analytics, handle) {
   let rows = [];
   try {
     const res = await analytics.reports.query({
-      ids: `channel==${channelId}`,
+      ids: 'channel==MINE',
       startDate,
       endDate: today,
-      metrics: 'subscriberGained,subscriberLost',
+      metrics: 'subscribersGained,subscribersLost',
       dimensions: 'day',
       sort: 'day',
     });
