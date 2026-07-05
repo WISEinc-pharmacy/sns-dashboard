@@ -69,7 +69,9 @@
     .filterbar input[type="date"] { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 8px 10px; font-size: var(--text-sm); min-height: 40px; font-family: inherit; }
 
     .cards { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-    .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: var(--space-card); }
+    .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: var(--space-card); cursor: pointer; transition: box-shadow 0.2s ease; }
+    .card:hover { box-shadow: 0 4px 14px rgba(59,130,246,0.20); }
+    .card.selected { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
     .card .channel { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 700; color: var(--color-text-sub); }
     .card .dot { width: 10px; height: 10px; border-radius: var(--radius-full); flex: 0 0 auto; }
     .card .value { font-size: var(--text-3xl); font-weight: 700; margin-top: var(--space-2); }
@@ -77,12 +79,13 @@
     .card .delta { font-size: var(--text-sm); margin-top: var(--space-2); }
     .delta.up { color: #059669; } .delta.down { color: #dc2626; } .delta.flat { color: var(--color-text-sub); }
     .card .sub-metrics { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-text-sub); }
-    .card.pending { background: var(--color-muted-bg); }
+    .card.pending { background: var(--color-muted-bg); cursor: default; }
     .card.pending .value { font-size: var(--text-lg); color: var(--color-text-sub); font-weight: 400; margin-top: var(--space-3); }
 
     section.panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: var(--space-card); }
     section.panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
-    .chart-wrap { width: 100%; overflow-x: auto; }
+    .chart-wrap { width: 100%; overflow-x: auto; transition: opacity 0.22s ease, transform 0.22s ease; }
+    .chart-wrap.chart-switching { opacity: 0; transform: translateY(6px); }
     .legend { display: flex; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-sub); margin-bottom: var(--space-2); flex-wrap: wrap; }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .legend .sw { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
@@ -166,7 +169,10 @@
       <div class="cards" id="cards"></div>
 
       <section class="panel">
-        <h2>登録者数の推移（期間内増減）</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4)">
+          <h2 id="chart-title" style="margin-bottom:0">登録者数の推移（期間内増減）</h2>
+          <button id="clearChannelBtn" class="btn small hidden">全チャンネル比較</button>
+        </div>
         <div class="legend" id="legend"></div>
         <div class="chart-wrap" id="chart"></div>
       </section>
@@ -202,7 +208,7 @@
     var auth = firebase.auth();
     var db = firebase.firestore();
 
-    var state = { user: null, profile: null, snapshots: null, contents: null, tab: 'youtube', range: 'all', from: null, to: null };
+    var state = { user: null, profile: null, snapshots: null, contents: null, tab: 'youtube', range: 'all', from: null, to: null, selectedChannel: null };
     var YT_COLORS = ['#dc2626', '#ea580c', '#9333ea'];
     var fmt = function (n) { return (n === undefined || n === null) ? '-' : Number(n).toLocaleString('ja-JP'); };
     var byId = function (id) { return document.getElementById(id); };
@@ -292,6 +298,11 @@
           renderContents();
         };
       });
+      byId('clearChannelBtn').onclick = function () {
+        state.selectedChannel = null;
+        renderCards();
+        renderChart();
+      };
     }
 
     function rangeBounds() {
@@ -350,7 +361,8 @@
       ytChannels().forEach(function (ch) {
         var pts = seriesInRange(ch.series, 'subscribers');
         var latest = pts.length ? ch.series.filter(function (s) { return inRange(s.date); }).slice(-1)[0] : ch.series[ch.series.length - 1];
-        cards.push('<div class="card"><div class="channel"><span class="dot" style="background:' + ch.color + '"></span>YouTube: ' + esc(ch.title) + '</div>' +
+        var sel = state.selectedChannel === ch.key;
+        cards.push('<div class="card' + (sel ? ' selected' : '') + '" data-channel="' + esc(ch.key) + '" tabindex="0"><div class="channel"><span class="dot" style="background:' + ch.color + '"></span>YouTube: ' + esc(ch.title) + '</div>' +
           '<div class="value">' + fmt(latest.subscribers) + '</div><div class="metric-label">チャンネル登録者</div>' +
           deltaHtml(pts, '人') +
           '<div class="sub-metrics">総再生 ' + fmt(latest.totalViews) + ' 回 / 動画 ' + fmt(latest.videoCount) + ' 本</div></div>');
@@ -358,27 +370,69 @@
       var lme = state.snapshots.lme || [];
       var lpts = seriesInRange(lme, 'friends');
       var lLatest = lme.filter(function (s) { return inRange(s.date); }).slice(-1)[0] || lme[lme.length - 1];
-      cards.push('<div class="card"><div class="channel"><span class="dot" style="background:var(--color-line)"></span>公式LINE（エルメ）</div>' +
+      var lmeSel = state.selectedChannel === 'lme';
+      cards.push('<div class="card' + (lmeSel ? ' selected' : '') + '" data-channel="lme" tabindex="0"><div class="channel"><span class="dot" style="background:var(--color-line)"></span>公式LINE（エルメ）</div>' +
         '<div class="value">' + (lLatest ? fmt(lLatest.friends) : '-') + '</div><div class="metric-label">友だち数</div>' +
         deltaHtml(lpts, '人') +
         '<div class="sub-metrics">' + (lLatest && lLatest.blocked !== undefined ? 'ブロック ' + fmt(lLatest.blocked) + ' 人' : '週1回更新') + '</div></div>');
       cards.push('<div class="card pending"><div class="channel"><span class="dot" style="background:#0f172a"></span>X（@mr39011）</div><div class="value">未連携（API課金設定後）</div></div>');
       cards.push('<div class="card pending"><div class="channel"><span class="dot" style="background:#1d4ed8"></span>Facebook</div><div class="value">未連携（後日）</div></div>');
       byId('cards').innerHTML = cards.join('');
+      byId('cards').querySelectorAll('[data-channel]').forEach(function (el) {
+        el.onclick = function () {
+          var ch = el.getAttribute('data-channel');
+          state.selectedChannel = (state.selectedChannel === ch) ? null : ch;
+          renderCards();
+          renderChart();
+        };
+      });
     }
 
     function renderChart() {
+      var el = byId('chart');
+      el.classList.add('chart-switching');
+      setTimeout(function () {
+        el.classList.remove('chart-switching');
+        _renderChartInner(el);
+      }, 160);
+    }
+    function _renderChartInner(el) {
+      var titleEl = byId('chart-title');
+      var clearBtn = byId('clearChannelBtn');
+      if (state.selectedChannel === null) {
+        titleEl.textContent = '登録者数の推移（期間内増減）';
+        clearBtn.classList.add('hidden');
+      } else {
+        var chName;
+        if (state.selectedChannel === 'lme') {
+          chName = '公式LINE';
+        } else {
+          var chs = ytChannels();
+          var found = null;
+          for (var ci = 0; ci < chs.length; ci++) { if (chs[ci].key === state.selectedChannel) { found = chs[ci]; break; } }
+          chName = found ? found.title : state.selectedChannel;
+        }
+        titleEl.textContent = chName + 'の登録者数推移';
+        clearBtn.classList.remove('hidden');
+      }
       var series = [];
-      ytChannels().forEach(function (ch) { series.push({ label: 'YouTube ' + ch.title, color: ch.color, pts: seriesInRange(ch.series, 'subscribers') }); });
-      series.push({ label: 'LINE友だち（エルメ）', color: '#059669', pts: seriesInRange(state.snapshots.lme || [], 'friends') });
+      if (state.selectedChannel === null) {
+        ytChannels().forEach(function (ch) { series.push({ label: 'YouTube ' + ch.title, color: ch.color, pts: seriesInRange(ch.series, 'subscribers') }); });
+        series.push({ label: 'LINE友だち（エルメ）', color: '#059669', pts: seriesInRange(state.snapshots.lme || [], 'friends') });
+      } else if (state.selectedChannel === 'lme') {
+        series.push({ label: 'LINE友だち（エルメ）', color: '#059669', pts: seriesInRange(state.snapshots.lme || [], 'friends') });
+      } else {
+        var chs2 = ytChannels();
+        var found2 = null;
+        for (var ci2 = 0; ci2 < chs2.length; ci2++) { if (chs2[ci2].key === state.selectedChannel) { found2 = chs2[ci2]; break; } }
+        if (found2) { series.push({ label: 'YouTube ' + found2.title, color: found2.color, pts: seriesInRange(found2.series, 'subscribers') }); }
+      }
       series = series.filter(function (s) { return s.pts.length; });
 
       byId('legend').innerHTML = series.map(function (s) { return '<span><span class="sw" style="background:' + s.color + '"></span>' + esc(s.label) + '</span>'; }).join('');
 
-      var el = byId('chart');
       var dset = {}; series.forEach(function (s) { s.pts.forEach(function (p) { dset[p.date] = 1; }); });
       var dates = Object.keys(dset).sort();
-      // 1点しかないseriesを今日まで延ばして折れ線として表示する（点になるのを防ぐ）
       var todayD = todayStr();
       if (dates.length && todayD > dates[dates.length - 1]) { dset[todayD] = 1; }
       dates = Object.keys(dset).sort();
@@ -389,7 +443,6 @@
         }
       });
       if (dates.length < 2) { el.innerHTML = '<p class="empty">この期間はデータが2点未満です。期間を広げてください。</p>'; return; }
-      // 各seriesを「最初の値からの増減（Δ）」に正規化して比較しやすくする
       series.forEach(function (s) {
         if (!s.pts.length) return;
         var base = s.pts[0].v;
